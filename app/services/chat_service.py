@@ -17,3 +17,13 @@ RealtimeGroq), add assistant reply, return reply.
 - save_chat_session: Write session to database/chats_data/ *. json so it persists
 and can be loaded on next startup (and used by the vector store for retrieval).'''
 
+import json
+import logging
+from pathlib import Path
+from typing import List, Optional, Dict
+import uuid
+
+from config import CHATS_DATA_DIR, MAX_CHAT_HISTORY_TURNS
+from app.models import ChatMessage, ChatHistory
+from app.services.groq_service import Groqservice
+from app.services.realtime_service import RealtimeGroqService
