@@ -9,7 +9,7 @@ from app.services.groq_service import GroqService
 from app.services.realtime_service import RealtimeGroqService
 
 
-logger = logging.getLogger("J.A.R.V.I.S")
+logger = logging.getLogger("A.X.I.O.M")
 
 class ChatService:
     def init (self, groq_service: GroqService, realtime_service: RealtimeGroqService = None):
