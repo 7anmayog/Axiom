@@ -11,3 +11,8 @@ from app.utils.time_info import get_time_information
 
 logger = logging.getLogger("A.X.I.O.M")
 
+def escape_curly_braces(text: str) -> str:
+    if not text:
+        return text
+    return text.replace("{", "{{").replace("}", "}}")
+
