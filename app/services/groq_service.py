@@ -16,3 +16,7 @@ def escape_curly_braces(text: str) -> str:
         return text
     return text.replace("{", "{{").replace("}", "}}")
 
+def _is_rate_limit_error(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    return "429" in str(exc) or "rate limit" in msg or "tokens per day" in msg
+
