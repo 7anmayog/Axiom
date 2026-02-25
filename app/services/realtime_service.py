@@ -83,7 +83,7 @@ class RealtimeGroqSerice(GroqService):
                 logger.warning("Vector store retrieval failed, using empty context: %s", retrieval_err)
 
             time_info = get_time_information()
-            system_message = JARVIS_SYSTEM_PROMPT + f"\n\nCurrent time and date: {time_info}"
+            system_message = AXIOM_SYSTEM_PROMPT+ f"\n\nCurrent time and date: {time_info}"
 
             if search_results:
                 escaped_search_results = escape_curly_braces(search_results)
@@ -104,7 +104,7 @@ class RealtimeGroqSerice(GroqService):
                     messages.append (HumanMessage(content=human_msg) )
                     messages.append(AIMessage(content=ai_msg))
 
-            response_content = self ._invoke_1lm(prompt, messages, question)
+            response_content = self ._invoke_llm(prompt, messages, question)
             logger.info(f"Realtime response generated for: {question}")
             return response_content
 
