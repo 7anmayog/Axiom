@@ -46,3 +46,43 @@ class GroqService:
         ]
         self.vector_store_service = vector_store_serice
         logger.info(f"Initialized GroqService with {len(GROQ_API_KEYS)} API key(s)")
+
+    def _invoke_llm(
+            self,
+            prompt: ChatPromptTemplate,
+            messages: list,
+            question: str,
+    ) -> str:
+        n=len(self.llms)
+        start_i = GroqService._shared_key_index % n
+        current_key_index = GroqService._shared_key_index
+        GroqService._shared_key_index += 1
+        masked_key = _mask_api_key(GROQ_API_KEYS[start_i])
+        logger.info(f"Using API key #{start_i +1} (round-robin index: {current_key_index}): {masked_key}")
+        last_exc = None
+        keys_tried = []
+        for j in range(n):
+            i = (start_i + j) % n
+            keys_tried.append(i)
+            try:
+                chain = prompt | self.llms[i]
+                response = chain.invoke({"history": messages, "question": question})
+                if j > 0:
+                    masked_success_key = _mask_api_key(GROQ_API_KEYS[i])
+                    logger.info(f"Fallback successfull: API key #{i + 1}/{n} succeeded: {masked_success_key}")
+                return response.content
+            except Exception as e:
+                last_exc = e
+                masked_failed_key = _mask_api_key(GROQ_API_KEYS[i])
+                if _is_rate_limit_error(e):
+                    logger.warning(f"API key #{i+1}/{n} failed: {masked_failed_key}")
+                else:
+                    logger.warning(f"API key #{i+1}/{n} failed: {masked_failed_key} - {str(e)[:100]}")
+                if n > 1:
+                    continue
+                raise Exception(f"Error getting response from groq: {str(e)}") from e
+        masked_all_keys = ", ".join([_mask_api_key(GROQ_API_KEYS[i]) for i in keys_tried])
+        logger.error(f"All API keys failed. Tried keys: {masked_all_keys}")
+        raise Exception(f"Error getting response from Groq: {str(last_exc)}") from last_exc
+
+    def get_response()    
