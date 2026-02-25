@@ -20,3 +20,8 @@ def _is_rate_limit_error(exc: BaseException) -> bool:
     msg = str(exc).lower()
     return "429" in str(exc) or "rate limit" in msg or "tokens per day" in msg
 
+def _mask_api_key(key: str) -> str:
+    if not key or len(key) <=12:
+        return "***masked***"
+    return f"{key[:8]}...{key[-4:]}"
+
