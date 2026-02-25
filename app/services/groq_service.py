@@ -5,7 +5,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 import logging
 
-from config import GROQ_API_KEYS, GROQ_MODEL, JARVIS_SYSTEM_PROMPT
+from config import GROQ_API_KEYS, GROQ_MODEL, AXIOM_SYSTEM_PROMPT
 from app.services.vector_store import VectorStoreService
 from app.utils.time_info import get_time_information
 
@@ -85,4 +85,34 @@ class GroqService:
         logger.error(f"All API keys failed. Tried keys: {masked_all_keys}")
         raise Exception(f"Error getting response from Groq: {str(last_exc)}") from last_exc
 
-    def get_response()    
+    def get_response(
+            self,
+            question: str,
+            chat_history: Optional[List[tuple]] = None
+    ) -> str:
+        try:
+            retriever = self.vector_store_service.get_retriever(k=10)
+            context_docs = retriever.invoke(question)
+            context = "\n".join([doc.page_content for doc in context_docs]) if context_docs else ""
+        except Exception as retrieval_err:
+            logger.warning("ector store retrial failed, using empty context: %s", retrieval_err)
+        
+            time_info = get_time_information()
+            system_message = AXIOM_SYSTEM_PROMPT + f"\n\nCurrent time and date: {time_info}"
+            if context:
+                system_message += f"\n\nReleant context from your learning data and past conersations:\n{escape_curly_braces(context)}"
+            
+            prompt = ChatPromptTemplate.from_messages([
+                ("system", system_message),
+                MessagesPlaceholder(variable_name="history"),
+                ("human", "{question}"),
+            ])
+            messages = []
+            if chat_history:
+                for human_msg, ai_msg in chat_history:
+                    messages.append(HumanMessage(context=human_msg))
+                    messages.append(AIMessage(content=ai_msg))
+            return self._invoke_llm(prompt, messages, question)
+        except Exception as e:
+            raise Exception(f"Error getting response from Groq: {str(e)}") from e
+                
