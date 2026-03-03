@@ -35,3 +35,21 @@ vector_store_service: VectorStoreService = None
 groq_service: GroqService = None
 realtime_service: RealtimeGroqService = None
 chat_service: ChatService = None
+
+
+
+def print_title():
+    title = """
+
+            __   __  _____    ____    __  __ 
+     /\     \ \ / / |_   _|  / __ \  |  \/  |
+    /  \     \ V /    | |   | |  | | | \  / |
+   / /\ \     > <     | |   | |  | | | |\/| |
+  / ____ \   / . \   _| |_  | |__| | | |  | |
+ /_/    \_\ /_/ \_\ |_____|  \____/  |_|  |_|
+
+           I DON'T GUESS, I KNOW.                                   
+ 
+
+"""
+    print(title)                                            
