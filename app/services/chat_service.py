@@ -12,7 +12,7 @@ from app.services.realtime_service import RealtimeGroqService
 logger = logging.getLogger("A.X.I.O.M")
 
 class ChatService:
-    def init (self, groq_service: GroqService, realtime_service: RealtimeGroqService = None):
+    def __init__ (self, groq_service: GroqService, realtime_service: RealtimeGroqService = None):
         self.groq_service = groq_service
         self.realtime_service = realtime_service
         self.sessions: Dict[str, List[ChatMessage]] = {}
@@ -82,7 +82,7 @@ class ChatService:
         return history
     def process_message(self, session_id: str, user_message: str) -> str:
         self.add_message(session_id, "user", user_message)
-        chat_history = self.format_history_for_11m(session_id, exclude_last=True)
+        chat_history = self.format_history_for_llm(session_id, exclude_last=True)
         response = self.groq_service.get_response(question=user_message, chat_history=chat_history)
         self.add_message(session_id, "assistant", response)
         return response
@@ -90,7 +90,7 @@ class ChatService:
         if not self.realtime_service:
             raise ValueError("Realtime service is not initialized. Cannot process realtime queries.")
         self.add_message(session_id, "user", user_message)
-        chat_history = self.format_history_for_11m(session_id, exclude_last=True)
+        chat_history = self.format_history_for_llm(session_id, exclude_last=True)
         response = self.realtime_service.get_response(question=user_message, chat_history=chat_history)
         self.add_message(session_id, "assistant", response)
         return response
