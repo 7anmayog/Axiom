@@ -41,15 +41,187 @@ chat_service: ChatService = None
 def print_title():
     title = """
 
-            __   __  _____    ____    __  __ 
-     /\     \ \ / / |_   _|  / __ \  |  \/  |
-    /  \     \ V /    | |   | |  | | | \  / |
-   / /\ \     > <     | |   | |  | | | |\/| |
-  / ____ \   / . \   _| |_  | |__| | | |  | |
- /_/    \_\ /_/ \_\ |_____|  \____/  |_|  |_|
+       /\     \ \ / / |_   _|  / __ \  |  \/  |
+      /  \     \ V /    | |   | |  | | | \  / |
+     / /\ \     > <     | |   | |  | | | |\/| |
+    / ____ \   / . \   _| |_  | |__| | | |  | |
+   /_/    \_\ /_/ \_\ |_____|  \____/  |_|  |_|
 
-           I DON'T GUESS, I KNOW.                                   
+             I DON'T GUESS, I KNOW                                  
  
 
 """
-    print(title)                                            
+    print(title)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Application lifespan manager - handles startup and shutdown.
+
+    This function manages the application's lifecycle:
+    - STARTUP: Initializes all services in the correct order
+    1. VectorStoreService: Creates FAISS index from learning data and chat history
+    2. GroqService: Sets up general chat AI service
+    3. RealtimeGroqService: Sets up realtime chat with Tavily search
+    4. ChatService: Manages chat sessions and conversations
+    - RUNTIME: Application runs normally
+    - SHUTDOWN: Saves all active chat sessions to disk
+
+    The services are initialized in this specific order because:
+    - VectorStoreService must be created first (used by GroqService)
+    - GroqService must be created before RealtimeGroqService (it inherits from it)
+    - ChatService needs both GroqService and RealtimeGroqService
+
+    All services are stored as global variables so they can be accessed by API endpoints.
+    """
+    global vector_store_service, groq_service, realtime_service, chat_service
+
+    print_title()
+    logger.info("=" * 60)
+    logger.info("A.X.I.O.M - Starting Up ... ")
+    logger.info("=" * 60)
+
+    try:
+        logger.info("Initializing vector store service ... ")
+        vector_store_service = VectorStoreService()
+        vector_store_service.create_vector_store()
+        logger.info("Vector store initialized successfully")
+        logger.info("Initializing Groq service (general queries) ... ")
+        groq_service = GroqService(vector_store_service)
+        logger.info("Groq service initialized successfully")
+        logger.info("Initializing Realtime Groq service (with Tavily search) ... ")
+        realtime_service = RealtimeGroqService(vector_store_service)
+        logger.info("Realtime Groq service initialized successfully")
+        logger.info("Initializing chat service ... ")
+        chat_service = ChatService(groq_service, realtime_service)
+        logger.info("Chat service initialized successfully")
+        logger.info("=" * 60)
+        logger.info("Service Status:")
+        logger.info(" - Vector Store: Ready")
+        logger.info(" - Groq AI (General): Ready")
+        logger.info(" - Groq AI (Realtime): Ready")
+        logger.info(" - Chat Service: Ready")
+        logger.info("=" * 60)
+        logger.info("A.X.I.O.M is online and ready!")
+        logger.info("API: http://localhost:8000")
+        logger.info("Docs: http://localhost:8000/docs")
+        logger.info("=" * 60)
+
+        yield
+
+        logger.info("\nShutting down A.X.I.O.M...")
+        if chat_service:
+            for session_id in list(chat_service.sessions.keys()):
+                chat_service.save_chat_session(session_id)
+        logger.info("All sessions saved. Goodbye!")
+
+    except Exception as e:
+        logger.error(f"fatal error during startup: {e}", exc_info=True)
+        raise
+
+app = FastAPI(
+    title="A.X.I.O.M API",
+    description="I DON'T GUESS, I KNOW",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/")
+async def root():
+    return {
+        "message": "A.X.I.O.M API",
+        "endpoints": {
+            "/chat": "General chat (pure LLM, no web search)",
+            "/chat/realtime": "Realtime chat (with Tavily search)",
+            "/chat/history/{session_id}": "Get chat history",
+            "/health": "System health check"
+        }
+    }
+
+@app.get("/health")
+async def health():
+    return {
+        "status": "healthy",
+        "vector_store": vector_store_service is not None,
+        "groq_service": groq_service is not None,
+        "realtime_service": realtime_service is not None,
+        "chat_service": chat_service is not None
+    }
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest):
+    if not chat_service:
+        raise HTTPException(status_code=503, detail="Chat service not initialized")
+    
+    try:
+        session_id = chat_service.get_or_create_session(request.session_id)
+        respomse_text = chat_service.process_message(session_id, request.message)
+        chat_service.save_chat_session(session_id)
+        return ChatResponse(response=respomse_text, session_id=session_id)
+    except ValueError as e:
+        logger.warning(f"invalid session_id: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        if _is_rate_limit_error(e):
+            logger.warning(f"Rate limit hit: {e}")
+            raise HTTPException(status_code=429, detail=RATE_LIMIT_MESSAGE)
+        logger.error(f"Error processing chat: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error processing chat: {str(e)}")
+    
+@app.post("/chat/realtime", response_model=ChatResponse)
+async def chat_realtime(request: ChatRequest):
+    if not chat_service:
+        raise HTTPException(status_code=503, detail="Chat service not initialized")
+
+    if not realtime_service:
+        raise HTTPException(status_code=503, detail="Realtime service not initialized")
+
+    try:
+        session_id = chat_service.get_or_create_session(request.session_id)
+        # Realtime: Tavily search first, then Groq with search results + context
+        response_text = chat_service.process_realtime_message(session_id, request.message)
+        chat_service. save_chat_session(session_id)
+        return ChatResponse(response=response_text, session_id=session_id)
+    except ValueError as e:
+        logger.warning(f"Invalid session_id: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        if _is_rate_limit_error(e):
+            logger.warning(f"Rate limit hit: {e}")
+            raise HTTPException(status_code=429, detail=RATE_LIMIT_MESSAGE)
+        logger.error(f"Error processing realtime chat: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error processing chat: {str(e)}")
+    
+@app.get("/chat/history/{session_id}")
+async def get_chat_history(session_id: str):
+    if not chat_service:
+        raise HTTPException(status_code=503, detail="Chat service not initialized")
+
+    try:
+        messages = chat_service.get_chat_history(session_id)
+        return {
+            "session_id": session_id,
+            "messages": [{"role": msg.role, "content": msg.content} for msg in messages]
+        }
+    except Exception as e:
+        logger.error(f"Error retrieving history: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error retrieving history: {str(e)}")
+
+def run():
+    uvicorn.run(
+        "app.main: app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        log_level="info"
+    )
+
+if __name__=="__main__":
+    run()
