@@ -1,0 +1,13 @@
+{
+  "session_id": "3d530ae6-b5b8-4d96-9098-b1530706b1cc",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hi"
+    },
+    {
+      "role": "assistant",
+      "content": "No response generated."
+    }
+  ]
+}

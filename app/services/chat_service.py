@@ -84,7 +84,7 @@ class ChatService:
         self.add_message(session_id, "user", user_message)
         chat_history = self.format_history_for_llm(session_id, exclude_last=True)
         response = self.groq_service.get_response(question=user_message, chat_history=chat_history)
-        self.add_message(session_id, "assistant", response)
+        self.add_message(session_id, "assistant", response or "No response generated.")
         return response
     def process_realtime_message(self, session_id: str, user_message: str) -> str:
         if not self.realtime_service:
@@ -92,7 +92,7 @@ class ChatService:
         self.add_message(session_id, "user", user_message)
         chat_history = self.format_history_for_llm(session_id, exclude_last=True)
         response = self.realtime_service.get_response(question=user_message, chat_history=chat_history)
-        self.add_message(session_id, "assistant", response)
+        self.add_message(session_id, "assistant", response or "No response generated.")
         return response
     def save_chat_session(self, session_id: str):
         if session_id not in self.sessions or not self.sessions[session_id]:
