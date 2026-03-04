@@ -93,7 +93,7 @@ async def lifespan(app: FastAPI):
         realtime_service = RealtimeGroqService(vector_store_service)
         logger.info("Realtime Groq service initialized successfully")
         logger.info("Initializing chat service ... ")
-        chat_service = ChatService(groq_service, realtime_service)
+        chat_service = ChatService(groq_service, vector_store_service, realtime_service)
         logger.info("Chat service initialized successfully")
         logger.info("=" * 60)
         logger.info("Service Status:")

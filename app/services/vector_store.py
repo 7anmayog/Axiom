@@ -29,10 +29,24 @@ class VectorStoreService:
         chunk_overlap=CHUNK_OVERLAP,
         )
         self.vector_store: Optional[FAISS] = None
-    
+
+        if VECTOR_STORE_DIR.exists():
+            try:
+                self.vector_store = FAISS.load_local(
+                    str(VECTOR_STORE_DIR),
+                    self.embeddings,
+                    allow_dangerous_deserialization=True
+                )
+                logger.info("Loaded existing vector store")
+            except Exception:
+                logger.warning("Failed to load existing vector store, rebuilding...")
+                self.create_vector_store()
+        else:
+            self.create_vector_store()
+
     def load_learning_data(self) -> List[Document]:
         documents = []
-        for file_path in list(LEARNING_DATA_DIR.glob(" *. txt")):
+        for file_path in list(LEARNING_DATA_DIR.glob("*.txt")):
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
                     content = f.read().strip()
@@ -44,10 +58,10 @@ class VectorStoreService:
     
     def load_chat_history(self) -> List[Document]:
         documents = []
-        for file_path in list(CHATS_DATA_DIR.glob(" *. json")):
+        for file_path in list(CHATS_DATA_DIR.glob("*.json")):
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
-                    chat_data = json. load(f)
+                    chat_data = json.load(f)
                 messages = chat_data.get("messages", [])
                 chat_content = "\n".join([
                     f"User: {msg.get('content', '')}" if msg.get('role') == 'user'
@@ -69,7 +83,7 @@ class VectorStoreService:
             self.vector_store = FAISS.from_texts(["No data avaliable yet."], self.embeddings)
         else:
             chunks = self.text_splitter.split_documents(all_documents)
-            self.vector_store = FAISS.add_documents(chunks, self.embeddings)
+            self.vector_store = FAISS.from_documents(chunks, self.embeddings)
         self.save_vector_store()
         return self.vector_store
     
@@ -78,7 +92,7 @@ class VectorStoreService:
             try:
                 self.vector_store.save_local(str(VECTOR_STORE_DIR))
             except Exception as e:
-                logger.error("failed to save vectro store to disk: %s", e)
+                logger.error("failed to save vector store to disk: %s", e)
 
     def get_retriever(self, k: int = 10):
         if not self.vector_store:

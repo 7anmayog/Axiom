@@ -12,8 +12,14 @@ from app.services.realtime_service import RealtimeGroqService
 logger = logging.getLogger("A.X.I.O.M")
 
 class ChatService:
-    def __init__ (self, groq_service: GroqService, realtime_service: RealtimeGroqService = None):
+    def __init__(
+        self,
+        groq_service: GroqService,
+        vector_store_service,
+        realtime_service: RealtimeGroqService = None
+    ):
         self.groq_service = groq_service
+        self.vector_store_service = vector_store_service
         self.realtime_service = realtime_service
         self.sessions: Dict[str, List[ChatMessage]] = {}
     def load_session_from_disk(self, session_id: str) -> bool:
@@ -82,17 +88,44 @@ class ChatService:
         return history
     def process_message(self, session_id: str, user_message: str) -> str:
         self.add_message(session_id, "user", user_message)
+
         chat_history = self.format_history_for_llm(session_id, exclude_last=True)
-        response = self.groq_service.get_response(question=user_message, chat_history=chat_history)
+
+        response = self.groq_service.get_response(
+            question=user_message,
+            chat_history=chat_history
+        )
+
         self.add_message(session_id, "assistant", response or "No response generated.")
+
+        # Save chat session to disk
+        self.save_chat_session(session_id)
+
+        # Update vector memory so AXIOM learns the conversation
+        self.vector_store_service.create_vector_store()
+
         return response
     def process_realtime_message(self, session_id: str, user_message: str) -> str:
         if not self.realtime_service:
             raise ValueError("Realtime service is not initialized. Cannot process realtime queries.")
+
         self.add_message(session_id, "user", user_message)
+
         chat_history = self.format_history_for_llm(session_id, exclude_last=True)
-        response = self.realtime_service.get_response(question=user_message, chat_history=chat_history)
+
+        response = self.realtime_service.get_response(
+            question=user_message,
+            chat_history=chat_history
+        )
+
         self.add_message(session_id, "assistant", response or "No response generated.")
+
+        # Save chat session
+        self.save_chat_session(session_id)
+
+        # Update vector memory
+        self.vector_store_service.create_vector_store()
+
         return response
     def save_chat_session(self, session_id: str):
         if session_id not in self.sessions or not self.sessions[session_id]:
