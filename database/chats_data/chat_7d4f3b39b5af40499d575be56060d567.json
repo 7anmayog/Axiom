@@ -1,0 +1,13 @@
+{
+  "session_id": "7d4f3b39-b5af-4049-9d57-5be56060d567",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hi"
+    },
+    {
+      "role": "assistant",
+      "content": "Good evening, it's a pleasure to assist you. How may I help you on this Wednesday evening?"
+    }
+  ]
+}
